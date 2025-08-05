@@ -430,4 +430,10 @@ NOTE: Try each command without any argument to see more detalis.
 /{BotCommands.ExecCommand}: Exec sync functions (Only Owner).
 /{BotCommands.ClearLocalsCommand}: Clear {BotCommands.AExecCommand} or {BotCommands.ExecCommand} locals (Only Owner).
 /{BotCommands.RssCommand}: RSS Menu.
+/{BotCommands.HashStatsCommand}: Show hash database statistics (Only Owner & Sudo).
+/{BotCommands.HashDuplicatesCommand} [limit] [hash_type]: Show duplicate file groups (Only Owner & Sudo).
+/{BotCommands.HashDetailsCommand} [hash] [hash_type]: Show files with specific hash (Only Owner & Sudo).
+/{BotCommands.HashLinksCommand} [hash] [hash_type]: Get Google Drive links for duplicate files (Only Owner & Sudo).
+/{BotCommands.HashCleanupCommand}: Clean up and rebuild hash database (Only Owner).
+/{BotCommands.HashRemoveCommand} [file_id]: Remove file from hash database (Only Owner & Sudo).
 """
