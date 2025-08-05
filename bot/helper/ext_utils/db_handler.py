@@ -8,6 +8,7 @@ from pymongo.errors import PyMongoError
 from ... import LOGGER, user_data, rss_dict, qbit_options
 from ...core.mltb_client import TgClient
 from ...core.config_manager import Config
+from .local_db_handler import LocalDbManager
 
 
 class DbManager:
@@ -15,8 +16,21 @@ class DbManager:
         self._return = True
         self._conn = None
         self.db = None
+        self._local_db = None
+        self._use_local = False
 
     async def connect(self):
+        # Check if DATABASE_URL is provided
+        if not Config.DATABASE_URL:
+            LOGGER.info("DATABASE_URL not provided, using local SQLite database")
+            self._use_local = True
+            self._local_db = LocalDbManager()
+            await self._local_db.connect()
+            self.db = self._local_db.db
+            self._return = self._local_db._return
+            return
+
+        # Use MongoDB if DATABASE_URL is provided
         try:
             if self._conn is not None:
                 await self._conn.close()
@@ -25,20 +39,30 @@ class DbManager:
             )
             self.db = self._conn.mltb
             self._return = False
+            LOGGER.info("Connected to MongoDB database")
         except PyMongoError as e:
             LOGGER.error(f"Error in DB connection: {e}")
-            self.db = None
-            self._return = True
+            LOGGER.info("Falling back to local SQLite database")
+            self._use_local = True
+            self._local_db = LocalDbManager()
+            await self._local_db.connect()
+            self.db = self._local_db.db
+            self._return = self._local_db._return
             self._conn = None
 
     async def disconnect(self):
         self._return = True
-        if self._conn is not None:
+        if self._use_local and self._local_db:
+            await self._local_db.disconnect()
+        elif self._conn is not None:
             await self._conn.close()
         self._conn = None
 
     async def update_deploy_config(self):
         if self._return:
+            return
+        if self._use_local:
+            await self._local_db.update_deploy_config()
             return
         settings = import_module("config")
         config_file = {
@@ -53,12 +77,18 @@ class DbManager:
     async def update_config(self, dict_):
         if self._return:
             return
+        if self._use_local:
+            await self._local_db.update_config(dict_)
+            return
         await self.db.settings.config.update_one(
             {"_id": TgClient.ID}, {"$set": dict_}, upsert=True
         )
 
     async def update_aria2(self, key, value):
         if self._return:
+            return
+        if self._use_local:
+            await self._local_db.update_aria2(key, value)
             return
         await self.db.settings.aria2c.update_one(
             {"_id": TgClient.ID}, {"$set": {key: value}}, upsert=True
@@ -67,6 +97,9 @@ class DbManager:
     async def update_qbittorrent(self, key, value):
         if self._return:
             return
+        if self._use_local:
+            await self._local_db.update_qbittorrent(key, value)
+            return
         await self.db.settings.qbittorrent.update_one(
             {"_id": TgClient.ID}, {"$set": {key: value}}, upsert=True
         )
@@ -74,12 +107,18 @@ class DbManager:
     async def save_qbit_settings(self):
         if self._return:
             return
+        if self._use_local:
+            await self._local_db.save_qbit_settings()
+            return
         await self.db.settings.qbittorrent.update_one(
             {"_id": TgClient.ID}, {"$set": qbit_options}, upsert=True
         )
 
     async def update_private_file(self, path):
         if self._return:
+            return
+        if self._use_local:
+            await self._local_db.update_private_file(path)
             return
         db_path = path.replace(".", "__")
         if await aiopath.exists(path):
@@ -98,6 +137,9 @@ class DbManager:
     async def update_nzb_config(self):
         if self._return:
             return
+        if self._use_local:
+            await self._local_db.update_nzb_config()
+            return
         async with aiopen("sabnzbd/SABnzbd.ini", "rb+") as pf:
             nzb_conf = await pf.read()
         await self.db.settings.nzb.replace_one(
@@ -106,6 +148,9 @@ class DbManager:
 
     async def update_user_data(self, user_id):
         if self._return:
+            return
+        if self._use_local:
+            await self._local_db.update_user_data(user_id)
             return
         data = user_data.get(user_id, {})
         data = data.copy()
@@ -145,6 +190,9 @@ class DbManager:
     async def update_user_doc(self, user_id, key, path=""):
         if self._return:
             return
+        if self._use_local:
+            await self._local_db.update_user_doc(user_id, key, path)
+            return
         if path:
             async with aiopen(path, "rb+") as doc:
                 doc_bin = await doc.read()
@@ -159,6 +207,9 @@ class DbManager:
     async def rss_update_all(self):
         if self._return:
             return
+        if self._use_local:
+            await self._local_db.rss_update_all()
+            return
         for user_id in list(rss_dict.keys()):
             await self.db.rss[TgClient.ID].replace_one(
                 {"_id": user_id}, rss_dict[user_id], upsert=True
@@ -167,6 +218,9 @@ class DbManager:
     async def rss_update(self, user_id):
         if self._return:
             return
+        if self._use_local:
+            await self._local_db.rss_update(user_id)
+            return
         await self.db.rss[TgClient.ID].replace_one(
             {"_id": user_id}, rss_dict[user_id], upsert=True
         )
@@ -174,10 +228,16 @@ class DbManager:
     async def rss_delete(self, user_id):
         if self._return:
             return
+        if self._use_local:
+            await self._local_db.rss_delete(user_id)
+            return
         await self.db.rss[TgClient.ID].delete_one({"_id": user_id})
 
     async def add_incomplete_task(self, cid, link, tag):
         if self._return:
+            return
+        if self._use_local:
+            await self._local_db.add_incomplete_task(cid, link, tag)
             return
         await self.db.tasks[TgClient.ID].insert_one(
             {"_id": link, "cid": cid, "tag": tag}
@@ -186,12 +246,17 @@ class DbManager:
     async def rm_complete_task(self, link):
         if self._return:
             return
+        if self._use_local:
+            await self._local_db.rm_complete_task(link)
+            return
         await self.db.tasks[TgClient.ID].delete_one({"_id": link})
 
     async def get_incomplete_tasks(self):
         notifier_dict = {}
         if self._return:
             return notifier_dict
+        if self._use_local:
+            return await self._local_db.get_incomplete_tasks()
         if await self.db.tasks[TgClient.ID].find_one():
             rows = self.db.tasks[TgClient.ID].find({})
             async for row in rows:
@@ -207,6 +272,9 @@ class DbManager:
 
     async def trunc_table(self, name):
         if self._return:
+            return
+        if self._use_local:
+            await self._local_db.trunc_table(name)
             return
         await self.db[name][TgClient.ID].drop()
 
