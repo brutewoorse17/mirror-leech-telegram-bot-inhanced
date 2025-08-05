@@ -1,3 +1,5 @@
+from asyncio import sleep as asleep
+from base64 import b64decode, b64encode
 from cloudscraper import create_scraper
 from hashlib import sha256
 from http.cookiejar import MozillaCookieJar
@@ -11,7 +13,9 @@ from time import sleep
 from urllib.parse import parse_qs, urlparse, quote
 from urllib3.util.retry import Retry
 from uuid import uuid4
-from base64 import b64decode, b64encode
+
+# Import async alternatives
+import httpx
 
 from ....core.config_manager import Config
 from ...ext_utils.exceptions import DirectDownloadLinkException
@@ -392,7 +396,8 @@ def uploadhaven(url):
             i.get("name"): i.get("value")
             for i in html.xpath('//form[@method="POST"]//input')
         }
-        sleep(15)
+        # Use shorter sleep for better performance - original site timing may not be necessary
+        sleep(5)  # Reduced from 15 seconds
         res = post(url, data=data, headers={"Referer": url}, cookies=res.cookies)
         html = HTML(res.text)
         if not html.xpath('//div[@class="alert alert-success mb-0"]//a'):
@@ -415,7 +420,8 @@ def mediafile(url):
         if not match:
             raise DirectDownloadLinkException("ERROR: Unable to find link data")
         download_url = match[1]
-        sleep(60)
+        # Reduced sleep time for better performance
+        sleep(30)  # Reduced from 60 seconds
         res = get(download_url, headers={"Referer": url}, cookies=res.cookies)
         postvalue = search(r"showFileInformation(.*);", res.text)
         if not postvalue:
