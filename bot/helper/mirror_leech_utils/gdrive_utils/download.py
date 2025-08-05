@@ -207,12 +207,19 @@ class GoogleDriveDownload(GoogleDriveHelper):
             existing_file = hash_db.check_duplicate_by_file_id(file_id)
             if existing_file:
                 LOGGER.info(f"File already in database: {file_name}")
-                msg = f"⚠️ <b>Duplicate Detected!</b>\n\n"
-                msg += f"📁 <b>File:</b> {file_name}\n"
+                existing_drive_link = self.G_DRIVE_BASE_DOWNLOAD_URL.format(file_id)
+                
+                msg = f"🔄 <b>File Already Processed!</b>\n\n"
+                msg += f"📁 <b>File:</b> <a href='{existing_drive_link}'>{file_name}</a>\n"
                 msg += f"💾 <b>Size:</b> {get_readable_file_size(file_size)}\n"
-                msg += f"🔍 <b>File ID:</b> {file_id}\n"
-                msg += f"📅 <b>Previously downloaded:</b> {existing_file['download_date']}\n\n"
-                msg += "This exact file was already processed. Skipping download to avoid duplicates."
+                msg += f"📅 <b>Previously processed:</b> {existing_file['download_date']}\n"
+                
+                if existing_file['file_path']:
+                    msg += f"📂 <b>Local path:</b> <code>{existing_file['file_path']}</code>\n"
+                
+                msg += f"\n💡 <b>Click the link above to access your file directly!</b>\n"
+                msg += "🚫 <b>Download cancelled - file already processed.</b>"
+                
                 async_to_sync(self.listener.on_download_error, msg)
                 self.listener.is_cancelled = True
                 return True
@@ -226,28 +233,34 @@ class GoogleDriveDownload(GoogleDriveHelper):
             
             if duplicates:
                 LOGGER.info(f"Hash-based duplicate found for: {file_name}")
-                msg = f"⚠️ <b>Hash-Based Duplicate Detected!</b>\n\n"
-                msg += f"📁 <b>File:</b> {file_name}\n"
-                msg += f"💾 <b>Size:</b> {get_readable_file_size(file_size)}\n"
-                msg += f"🔍 <b>File ID:</b> {file_id}\n"
+                
+                # Get the most recent duplicate for the link
+                most_recent_dup = max(duplicates, key=lambda x: x['download_date'])
+                duplicate_drive_link = self.G_DRIVE_BASE_DOWNLOAD_URL.format(most_recent_dup['file_id'])
+                
+                msg = f"🔄 <b>Duplicate File Found!</b>\n\n"
+                msg += f"📁 <b>Requested File:</b> {file_name}\n"
+                msg += f"💾 <b>Size:</b> {get_readable_file_size(file_size)}\n\n"
+                
+                msg += f"✅ <b>Available Duplicate:</b> <a href='{duplicate_drive_link}'>{most_recent_dup['file_name']}</a>\n"
+                msg += f"📅 <b>Previously processed:</b> {most_recent_dup['download_date']}\n"
                 
                 if md5_hash:
-                    msg += f"🔐 <b>MD5:</b> {md5_hash[:16]}...{md5_hash[-8:]}\n"
+                    msg += f"🔐 <b>MD5:</b> <code>{md5_hash[:16]}...{md5_hash[-8:]}</code>\n"
                 if sha1_hash:
-                    msg += f"🔐 <b>SHA1:</b> {sha1_hash[:16]}...{sha1_hash[-8:]}\n"
+                    msg += f"🔐 <b>SHA1:</b> <code>{sha1_hash[:16]}...{sha1_hash[-8:]}</code>\n"
                 
-                msg += f"\n<b>🔄 Found {len(duplicates)} duplicate(s):</b>\n"
+                if len(duplicates) > 1:
+                    msg += f"\n<b>📋 All {len(duplicates)} duplicate(s):</b>\n"
+                    for i, dup in enumerate(duplicates, 1):
+                        dup_link = self.G_DRIVE_BASE_DOWNLOAD_URL.format(dup['file_id'])
+                        msg += f"\n{i}. <a href='{dup_link}'>{dup['file_name']}</a>\n"
+                        msg += f"   📅 {dup['download_date']}\n"
+                        if dup['file_path']:
+                            msg += f"   📂 {dup['file_path']}\n"
                 
-                for i, dup in enumerate(duplicates[:3], 1):  # Show max 3 duplicates
-                    msg += f"\n{i}. <b>{dup['file_name']}</b>\n"
-                    msg += f"   📅 Downloaded: {dup['download_date']}\n"
-                    if dup['file_path']:
-                        msg += f"   📂 Path: {dup['file_path']}\n"
-                
-                if len(duplicates) > 3:
-                    msg += f"\n... and {len(duplicates) - 3} more duplicate(s)\n"
-                
-                msg += "\n🚫 <b>Download cancelled to prevent duplicate storage.</b>"
+                msg += f"\n💡 <b>Use the link above to access your file directly!</b>\n"
+                msg += "🚫 <b>Download cancelled to prevent duplicate storage.</b>"
                 
                 # Add the file to database even though we're not downloading
                 hash_db.add_file_hash(

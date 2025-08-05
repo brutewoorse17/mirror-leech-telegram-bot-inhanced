@@ -127,7 +127,10 @@ async def hash_details(client, message):
         msg += f"📊 <b>Found {len(files)} file(s):</b>\n\n"
         
         for i, file in enumerate(files, 1):
-            msg += f"<b>{i}. {file['file_name']}</b>\n"
+            # Create Google Drive link
+            drive_link = f"https://drive.google.com/uc?id={file['file_id']}&export=download"
+            
+            msg += f"<b>{i}. <a href='{drive_link}'>{file['file_name']}</a></b>\n"
             msg += f"   📁 ID: <code>{file['file_id']}</code>\n"
             msg += f"   💾 Size: {get_readable_file_size(file['file_size'])}\n"
             msg += f"   📅 Downloaded: {file['download_date']}\n"
@@ -197,9 +200,61 @@ async def hash_remove(client, message):
     except Exception as e:
         await send_message(message, f"❌ Error removing file: {str(e)}")
 
+@new_task
+async def hash_links(client, message):
+    """Get Google Drive links for duplicate files by hash"""
+    user_id = message.from_user.id
+    
+    if user_id not in Config.SUDO_USERS and user_id != Config.OWNER_ID:
+        await send_message(message, "❌ You don't have permission to use this command!")
+        return
+    
+    try:
+        args = message.text.split()
+        if len(args) < 2:
+            await send_message(message, f"❌ Usage: <code>/{BotCommands.HashLinksCommand} [hash_value] [hash_type]</code>")
+            return
+        
+        hash_value = args[1]
+        hash_type = 'md5'
+        
+        if len(args) > 2 and args[2].lower() in ['md5', 'sha1']:
+            hash_type = args[2].lower()
+        
+        files = await sync_to_async(hash_db.get_files_by_hash, hash_value, hash_type)
+        
+        if not files:
+            await send_message(message, f"❌ No files found with {hash_type.upper()} hash: <code>{hash_value}</code>")
+            return
+        
+        msg = f"🔗 <b>Google Drive Links ({hash_type.upper()})</b>\n"
+        msg += f"🔐 <code>{hash_value}</code>\n\n"
+        
+        if len(files) == 1:
+            file = files[0]
+            drive_link = f"https://drive.google.com/uc?id={file['file_id']}&export=download"
+            msg += f"📁 <b><a href='{drive_link}'>{file['file_name']}</a></b>\n"
+            msg += f"💾 Size: {get_readable_file_size(file['file_size'])}\n"
+            msg += f"📅 Processed: {file['download_date']}"
+        else:
+            msg += f"📊 <b>Found {len(files)} duplicate files:</b>\n\n"
+            
+            for i, file in enumerate(files, 1):
+                drive_link = f"https://drive.google.com/uc?id={file['file_id']}&export=download"
+                msg += f"{i}. <b><a href='{drive_link}'>{file['file_name']}</a></b>\n"
+                msg += f"   💾 {get_readable_file_size(file['file_size'])} | 📅 {file['download_date']}\n\n"
+            
+            msg += "💡 <b>Click any link above to download the file directly!</b>"
+        
+        await send_message(message, msg)
+        
+    except Exception as e:
+        await send_message(message, f"❌ Error retrieving links: {str(e)}")
+
 # Register handlers
 hash_stats_handler = MessageHandler(hash_stats, filters=filters.command(BotCommands.HashStatsCommand) & CustomFilters.authorized)
 hash_duplicates_handler = MessageHandler(hash_duplicates, filters=filters.command(BotCommands.HashDuplicatesCommand) & CustomFilters.authorized)
 hash_details_handler = MessageHandler(hash_details, filters=filters.command(BotCommands.HashDetailsCommand) & CustomFilters.authorized)
 hash_cleanup_handler = MessageHandler(hash_cleanup, filters=filters.command(BotCommands.HashCleanupCommand) & CustomFilters.authorized)
 hash_remove_handler = MessageHandler(hash_remove, filters=filters.command(BotCommands.HashRemoveCommand) & CustomFilters.authorized)
+hash_links_handler = MessageHandler(hash_links, filters=filters.command(BotCommands.HashLinksCommand) & CustomFilters.authorized)

@@ -354,3 +354,10 @@ def add_handlers():
             & CustomFilters.sudo,
         )
     )
+    TgClient.bot.add_handler(
+        MessageHandler(
+            hash_links,
+            filters=command(BotCommands.HashLinksCommand, case_sensitive=True)
+            & CustomFilters.sudo,
+        )
+    )

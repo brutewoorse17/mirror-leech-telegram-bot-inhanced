@@ -47,3 +47,4 @@ class BotCommands:
     HashDetailsCommand = f"hashdetails{i}"
     HashCleanupCommand = f"hashcleanup{i}"
     HashRemoveCommand = f"hashremove{i}"
+    HashLinksCommand = f"hashlinks{i}"

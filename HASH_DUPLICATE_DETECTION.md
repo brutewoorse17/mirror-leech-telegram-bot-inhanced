@@ -20,6 +20,7 @@ This document describes the hash-based duplicate detection system implemented fo
 - `/hashstats` - View database statistics and storage efficiency
 - `/hashduplicates [limit] [hash_type]` - List duplicate file groups
 - `/hashdetails [hash] [hash_type]` - Show files with specific hash
+- `/hashlinks [hash] [hash_type]` - Get Google Drive links for duplicate files
 - `/hashcleanup` - Clean and rebuild database (Owner only)
 - `/hashremove [file_id]` - Remove specific file from database
 
@@ -109,26 +110,49 @@ If duplicate found: Show warning and cancel → If unique: Proceed with download
 ```
 
 ### Download Attempt with Duplicate
-When trying to download a duplicate file:
+When trying to download a duplicate file, the bot automatically provides Google Drive links:
 ```
-⚠️ Hash-Based Duplicate Detected!
+🔄 Duplicate File Found!
 
-📁 File: example_movie.mp4
+📁 Requested File: example_movie.mp4
 💾 Size: 1.2 GB
-🔍 File ID: 1a2b3c4d5e6f7g8h9i0j
+
+✅ Available Duplicate: example_film.mp4
+📅 Previously processed: 2024-01-15 10:30:45
 🔐 MD5: a1b2c3d4e5f6...12345678
 
-🔄 Found 2 duplicate(s):
+📋 All 2 duplicate(s):
 
 1. example_film.mp4
-   📅 Downloaded: 2024-01-15 10:30:45
-   📂 Path: /downloads/movies/example_film.mp4
+   📅 2024-01-15 10:30:45
+   📂 /downloads/movies/example_film.mp4
 
 2. movie_copy.mp4
-   📅 Downloaded: 2024-01-10 15:22:10
-   📂 Path: /downloads/backup/movie_copy.mp4
+   📅 2024-01-10 15:22:10
+   📂 /downloads/backup/movie_copy.mp4
 
+💡 Use the link above to access your file directly!
 🚫 Download cancelled to prevent duplicate storage.
+```
+
+### Get Direct Links for Duplicates
+```
+/hashlinks a1b2c3d4e5f6789012345678901234567890 md5
+```
+**Output:**
+```
+🔗 Google Drive Links (MD5)
+🔐 a1b2c3d4e5f6789012345678901234567890
+
+📊 Found 2 duplicate files:
+
+1. example_film.mp4
+   💾 1.2 GB | 📅 2024-01-15 10:30:45
+
+2. movie_copy.mp4
+   💾 1.2 GB | 📅 2024-01-10 15:22:10
+
+💡 Click any link above to download the file directly!
 ```
 
 ## Configuration

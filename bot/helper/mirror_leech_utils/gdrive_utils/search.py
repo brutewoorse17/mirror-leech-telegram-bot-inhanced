@@ -159,10 +159,22 @@ class GoogleDriveSearch(GoogleDriveHelper):
                     # Check for hash-based duplicates
                     duplicate_info = self._check_file_duplicates(file)
                     duplicate_text = ""
+                    duplicate_links = ""
+                    
                     if duplicate_info:
                         duplicate_text = f" <b>🔄 ({duplicate_info['count']} duplicates)</b>"
+                        # Add links to duplicate files
+                        if duplicate_info['files']:
+                            duplicate_links = "<br><b>🔄 Duplicates:</b> "
+                            for i, dup in enumerate(duplicate_info['files'][:2], 1):  # Show max 2 duplicates
+                                dup_link = self.G_DRIVE_BASE_DOWNLOAD_URL.format(dup['file_id'])
+                                duplicate_links += f"<a href='{dup_link}'>{i}</a>"
+                                if i < len(duplicate_info['files'][:2]):
+                                    duplicate_links += " | "
+                            if duplicate_info['count'] > 2:
+                                duplicate_links += f" | +{duplicate_info['count'] - 2} more"
                     
-                    msg += f"📄 <code>{file.get('name')}<br>({get_readable_file_size(file_size)}){duplicate_text}</code><br>"
+                    msg += f"📄 <code>{file.get('name')}<br>({get_readable_file_size(file_size)}){duplicate_text}</code>{duplicate_links}<br>"
                     msg += f"<b><a href={furl}>Drive Link</a></b>"
                     if index_url:
                         url = f'{index_url}/findpath?id={file.get("id")}'
