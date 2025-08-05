@@ -34,6 +34,9 @@ python-magic
 lxml>=4.9.0
 natsort
 
+# Supabase client
+supabase>=2.0.0
+
 # Utilities
 apscheduler>=3.10.0
 cloudscraper

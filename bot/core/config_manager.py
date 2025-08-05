@@ -53,6 +53,8 @@ class Config:
     STOP_DUPLICATE = False
     STREAMWISH_API = ""
     SUDO_USERS = ""
+    SUPABASE_URL = ""
+    SUPABASE_SERVICE_KEY = ""
     TELEGRAM_API = 0
     TELEGRAM_HASH = ""
     TG_PROXY = {}
