@@ -319,3 +319,38 @@ def add_handlers():
             & CustomFilters.authorized,
         )
     )
+    TgClient.bot.add_handler(
+        MessageHandler(
+            hash_stats,
+            filters=command(BotCommands.HashStatsCommand, case_sensitive=True)
+            & CustomFilters.sudo,
+        )
+    )
+    TgClient.bot.add_handler(
+        MessageHandler(
+            hash_duplicates,
+            filters=command(BotCommands.HashDuplicatesCommand, case_sensitive=True)
+            & CustomFilters.sudo,
+        )
+    )
+    TgClient.bot.add_handler(
+        MessageHandler(
+            hash_details,
+            filters=command(BotCommands.HashDetailsCommand, case_sensitive=True)
+            & CustomFilters.sudo,
+        )
+    )
+    TgClient.bot.add_handler(
+        MessageHandler(
+            hash_cleanup,
+            filters=command(BotCommands.HashCleanupCommand, case_sensitive=True)
+            & CustomFilters.owner,
+        )
+    )
+    TgClient.bot.add_handler(
+        MessageHandler(
+            hash_remove,
+            filters=command(BotCommands.HashRemoveCommand, case_sensitive=True)
+            & CustomFilters.sudo,
+        )
+    )

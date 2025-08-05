@@ -2,6 +2,7 @@ from logging import getLogger
 
 from .... import drives_names, drives_ids, index_urls, user_data
 from ....helper.ext_utils.status_utils import get_readable_file_size
+from ....helper.ext_utils.hash_utils import hash_db
 from ....helper.mirror_leech_utils.gdrive_utils.helper import GoogleDriveHelper
 
 LOGGER = getLogger(__name__)
@@ -83,7 +84,7 @@ class GoogleDriveSearch(GoogleDriveHelper):
                         q=query,
                         spaces="drive",
                         pageSize=150,
-                        fields="files(id, name, mimeType, size)",
+                        fields="files(id, name, mimeType, size, md5Checksum, sha1Checksum)",
                         orderBy="folder, name asc",
                     )
                     .execute()
@@ -153,7 +154,15 @@ class GoogleDriveSearch(GoogleDriveHelper):
                     )
                 else:
                     furl = self.G_DRIVE_BASE_DOWNLOAD_URL.format(file.get("id"))
-                    msg += f"📄 <code>{file.get('name')}<br>({get_readable_file_size(int(file.get('size', 0)))})</code><br>"
+                    file_size = int(file.get('size', 0))
+                    
+                    # Check for hash-based duplicates
+                    duplicate_info = self._check_file_duplicates(file)
+                    duplicate_text = ""
+                    if duplicate_info:
+                        duplicate_text = f" <b>🔄 ({duplicate_info['count']} duplicates)</b>"
+                    
+                    msg += f"📄 <code>{file.get('name')}<br>({get_readable_file_size(file_size)}){duplicate_text}</code><br>"
                     msg += f"<b><a href={furl}>Drive Link</a></b>"
                     if index_url:
                         url = f'{index_url}/findpath?id={file.get("id")}'
@@ -181,3 +190,37 @@ class GoogleDriveSearch(GoogleDriveHelper):
         user_dict = user_data.get(user_id, {})
         INDEX = user_dict["index_url"] if user_dict.get("index_url") else ""
         return [("User Choice", dest_id, INDEX)]
+
+    def _check_file_duplicates(self, file):
+        """Check if file has hash-based duplicates in the database"""
+        try:
+            file_id = file.get("id")
+            md5_hash = file.get("md5Checksum")
+            sha1_hash = file.get("sha1Checksum")
+            
+            # Skip if no hash available
+            if not md5_hash and not sha1_hash:
+                return None
+            
+            # Check for duplicates
+            duplicates = []
+            if md5_hash:
+                duplicates = hash_db.check_duplicate_by_hash(md5_hash=md5_hash)
+            elif sha1_hash:
+                duplicates = hash_db.check_duplicate_by_hash(sha1_hash=sha1_hash)
+            
+            # Return info if duplicates found (excluding current file)
+            if duplicates:
+                # Filter out the current file from duplicates
+                other_duplicates = [d for d in duplicates if d['file_id'] != file_id]
+                if other_duplicates:
+                    return {
+                        'count': len(other_duplicates),
+                        'files': other_duplicates[:3]  # Limit to first 3
+                    }
+            
+            return None
+            
+        except Exception as e:
+            LOGGER.error(f"Error checking file duplicates in search: {e}")
+            return None

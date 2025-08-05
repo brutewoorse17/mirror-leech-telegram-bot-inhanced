@@ -149,7 +149,24 @@ class GoogleDriveHelper:
             .get(
                 fileId=file_id,
                 supportsAllDrives=True,
-                fields="name, id, mimeType, size",
+                fields="name, id, mimeType, size, md5Checksum, sha1Checksum",
+            )
+            .execute()
+        )
+    
+    @retry(
+        wait=wait_exponential(multiplier=2, min=3, max=6),
+        stop=stop_after_attempt(3),
+        retry=retry_if_exception_type(Exception),
+    )
+    def get_file_metadata_with_hash(self, file_id):
+        """Get file metadata including hash values for duplicate detection"""
+        return (
+            self.service.files()
+            .get(
+                fileId=file_id,
+                supportsAllDrives=True,
+                fields="name, id, mimeType, size, md5Checksum, sha1Checksum, parents, createdTime, modifiedTime",
             )
             .execute()
         )
@@ -177,7 +194,7 @@ class GoogleDriveHelper:
                     q=q,
                     spaces="drive",
                     pageSize=200,
-                    fields="nextPageToken, files(id, name, mimeType, size, shortcutDetails)",
+                    fields="nextPageToken, files(id, name, mimeType, size, md5Checksum, sha1Checksum, shortcutDetails)",
                     orderBy="folder, name",
                     pageToken=page_token,
                 )

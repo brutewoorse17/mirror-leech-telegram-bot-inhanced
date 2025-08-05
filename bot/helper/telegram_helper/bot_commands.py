@@ -42,3 +42,8 @@ class BotCommands:
     SelectCommand = f"sel{i}"
     RssCommand = f"rss{i}"
     NzbSearchCommand = f"nzbsearch{i}"
+    HashStatsCommand = f"hashstats{i}"
+    HashDuplicatesCommand = f"hashduplicates{i}"
+    HashDetailsCommand = f"hashdetails{i}"
+    HashCleanupCommand = f"hashcleanup{i}"
+    HashRemoveCommand = f"hashremove{i}"

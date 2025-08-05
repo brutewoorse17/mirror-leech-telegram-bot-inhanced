@@ -13,6 +13,8 @@ from tenacity import (
 
 from ...ext_utils.bot_utils import async_to_sync
 from ...ext_utils.bot_utils import SetInterval
+from ...ext_utils.hash_utils import hash_db
+from ...ext_utils.status_utils import get_readable_file_size
 from ...mirror_leech_utils.gdrive_utils.helper import GoogleDriveHelper
 
 LOGGER = getLogger(__name__)
@@ -31,7 +33,14 @@ class GoogleDriveDownload(GoogleDriveHelper):
         self.service = self.authorize()
         self._updater = SetInterval(self.update_interval, self.progress)
         try:
-            meta = self.get_file_metadata(file_id)
+            meta = self.get_file_metadata_with_hash(file_id)
+            
+            # Check for hash-based duplicates before downloading
+            if not meta.get("mimeType") == self.G_DRIVE_DIR_MIME_TYPE:
+                duplicate_check = self._check_duplicate_before_download(file_id, meta)
+                if duplicate_check:
+                    return duplicate_check
+            
             if meta.get("mimeType") == self.G_DRIVE_DIR_MIME_TYPE:
                 self._download_folder(file_id, self._path, self.listener.name)
             else:
@@ -84,10 +93,14 @@ class GoogleDriveDownload(GoogleDriveHelper):
             if mime_type == self.G_DRIVE_DIR_MIME_TYPE:
                 self._download_folder(file_id, path, filename)
             elif not ospath.isfile(
-                f"{path}{filename}"
+                f"{path}/{filename}"
             ) and not filename.strip().lower().endswith(
                 tuple(self.listener.excluded_extensions)
             ):
+                # Check for duplicates before downloading individual files in folder
+                if self._should_skip_file_in_folder(item):
+                    LOGGER.info(f"Skipping duplicate file in folder: {filename}")
+                    continue
                 self._download_file(file_id, path, filename, mime_type)
             if self.listener.is_cancelled:
                 break
@@ -162,4 +175,119 @@ class GoogleDriveDownload(GoogleDriveHelper):
                     else:
                         LOGGER.error(f"Got: {reason}")
                         raise err
+        
+        # Add successfully downloaded file to hash database
+        if not self.listener.is_cancelled:
+            try:
+                meta = self.get_file_metadata_with_hash(file_id)
+                hash_db.add_file_hash(
+                    file_id=file_id,
+                    file_name=filename,
+                    file_size=meta.get("size", 0),
+                    md5_hash=meta.get("md5Checksum"),
+                    sha1_hash=meta.get("sha1Checksum"),
+                    mime_type=mime_type,
+                    file_path=f"{path}/{filename}"
+                )
+                LOGGER.info(f"Added file to hash database: {filename}")
+            except Exception as e:
+                LOGGER.error(f"Failed to add file to hash database: {e}")
+        
         self.file_processed_bytes = 0
+
+    def _check_duplicate_before_download(self, file_id, meta):
+        """Check if file is duplicate based on hash before starting download"""
+        try:
+            md5_hash = meta.get("md5Checksum")
+            sha1_hash = meta.get("sha1Checksum")
+            file_name = meta.get("name", "Unknown")
+            file_size = int(meta.get("size", 0))
+            
+            # Check if this exact file ID was already processed
+            existing_file = hash_db.check_duplicate_by_file_id(file_id)
+            if existing_file:
+                LOGGER.info(f"File already in database: {file_name}")
+                msg = f"⚠️ <b>Duplicate Detected!</b>\n\n"
+                msg += f"📁 <b>File:</b> {file_name}\n"
+                msg += f"💾 <b>Size:</b> {get_readable_file_size(file_size)}\n"
+                msg += f"🔍 <b>File ID:</b> {file_id}\n"
+                msg += f"📅 <b>Previously downloaded:</b> {existing_file['download_date']}\n\n"
+                msg += "This exact file was already processed. Skipping download to avoid duplicates."
+                async_to_sync(self.listener.on_download_error, msg)
+                self.listener.is_cancelled = True
+                return True
+            
+            # Check for hash-based duplicates
+            duplicates = []
+            if md5_hash:
+                duplicates = hash_db.check_duplicate_by_hash(md5_hash=md5_hash)
+            elif sha1_hash:
+                duplicates = hash_db.check_duplicate_by_hash(sha1_hash=sha1_hash)
+            
+            if duplicates:
+                LOGGER.info(f"Hash-based duplicate found for: {file_name}")
+                msg = f"⚠️ <b>Hash-Based Duplicate Detected!</b>\n\n"
+                msg += f"📁 <b>File:</b> {file_name}\n"
+                msg += f"💾 <b>Size:</b> {get_readable_file_size(file_size)}\n"
+                msg += f"🔍 <b>File ID:</b> {file_id}\n"
+                
+                if md5_hash:
+                    msg += f"🔐 <b>MD5:</b> {md5_hash[:16]}...{md5_hash[-8:]}\n"
+                if sha1_hash:
+                    msg += f"🔐 <b>SHA1:</b> {sha1_hash[:16]}...{sha1_hash[-8:]}\n"
+                
+                msg += f"\n<b>🔄 Found {len(duplicates)} duplicate(s):</b>\n"
+                
+                for i, dup in enumerate(duplicates[:3], 1):  # Show max 3 duplicates
+                    msg += f"\n{i}. <b>{dup['file_name']}</b>\n"
+                    msg += f"   📅 Downloaded: {dup['download_date']}\n"
+                    if dup['file_path']:
+                        msg += f"   📂 Path: {dup['file_path']}\n"
+                
+                if len(duplicates) > 3:
+                    msg += f"\n... and {len(duplicates) - 3} more duplicate(s)\n"
+                
+                msg += "\n🚫 <b>Download cancelled to prevent duplicate storage.</b>"
+                
+                # Add the file to database even though we're not downloading
+                hash_db.add_file_hash(
+                    file_id=file_id,
+                    file_name=file_name,
+                    file_size=file_size,
+                    md5_hash=md5_hash,
+                    sha1_hash=sha1_hash,
+                    mime_type=meta.get("mimeType"),
+                    file_path=None  # Not downloaded
+                )
+                
+                async_to_sync(self.listener.on_download_error, msg)
+                self.listener.is_cancelled = True
+                return True
+            
+            return False
+            
+        except Exception as e:
+            LOGGER.error(f"Error checking duplicates: {e}")
+            return False
+
+    def _should_skip_file_in_folder(self, item):
+        """Check if file in folder should be skipped due to duplication"""
+        try:
+            file_id = item["id"]
+            md5_hash = item.get("md5Checksum")
+            sha1_hash = item.get("sha1Checksum")
+            
+            # Check if file ID already exists
+            if hash_db.check_duplicate_by_file_id(file_id):
+                return True
+            
+            # Check hash-based duplicates
+            if md5_hash and hash_db.check_duplicate_by_hash(md5_hash=md5_hash):
+                return True
+            if sha1_hash and hash_db.check_duplicate_by_hash(sha1_hash=sha1_hash):
+                return True
+            
+            return False
+        except Exception as e:
+            LOGGER.error(f"Error checking file in folder: {e}")
+            return False
