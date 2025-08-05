@@ -279,6 +279,10 @@ Fill up rest of the fields. Meaning of each field is discussed below.
 
 - `DATABASE_URL` (`Str`): Your Mongo Database URL (Connection string). Follow this [Create Database](https://github.com/anasty17/test?tab=readme-ov-file#create-database) to create database. Data will be saved in Database: bot settings, users settings, rss data and incomplete tasks. **NOTE**: You can always edit all settings that saved in database from the official site -> (Browse collections). 
 
+- `SUPABASE_URL` (`Str`): Your Supabase project URL. Get this from your Supabase project dashboard. **NOTE**: Supabase has priority over MongoDB if both are configured.
+
+- `SUPABASE_SERVICE_KEY` (`Str`): Your Supabase service role secret key. Get this from Project Settings > API > Project API keys in your Supabase dashboard. **IMPORTANT**: Use the service_role key, not the anon key.
+
 - `CMD_SUFFIX` (`Str`|`Int`): Commands index number. This number will added at the end all commands.
 
 - `AUTHORIZED_CHATS` (`Str`): Fill user_id and chat_id of groups/users you want to authorize. To auth only specific topic(s) write it in this format `chat_id|thread_id` Ex:-100XXXXXXXXXXX or -100XXXXXXXXXXX|10 or -100XXXXXXXXXXX|10|12. Separate them by spaces.
@@ -454,6 +458,81 @@ see [Using Service Accounts](https://github.com/anasty17/mirror-leech-telegram-b
 ------
 
 </details>
+</details>
+
+<details>
+  <summary><h1>Database Setup</h1></summary>
+
+## Database Priority Order
+
+The bot supports multiple database backends with the following priority order:
+
+1. **Supabase** (PostgreSQL) - Recommended for production
+2. **MongoDB** - Traditional option
+3. **SQLite** - Local fallback
+
+If multiple database configurations are provided, the bot will use the highest priority option that connects successfully.
+
+## Setting up Supabase Database
+
+### 1. Create a Supabase Project
+
+1. Go to [supabase.com](https://supabase.com) and create an account
+2. Create a new project
+3. Wait for the project to be ready
+
+### 2. Get Your Credentials
+
+From your Supabase project dashboard:
+
+1. Go to **Settings** > **API**
+2. Copy your **Project URL** (for `SUPABASE_URL`)
+3. Copy your **service_role** secret key (for `SUPABASE_SERVICE_KEY`)
+   - **Important**: Use the `service_role` key, NOT the `anon` key
+
+### 3. Set Up Database Schema
+
+1. Go to your Supabase project dashboard
+2. Navigate to **SQL Editor**
+3. Copy the contents of `supabase_schema.sql` from this repository
+4. Paste it into the SQL editor and run it
+5. This will create all required tables and indexes
+
+### 4. Configure Your Bot
+
+Add these variables to your configuration:
+
+```
+SUPABASE_URL = "https://your-project.supabase.co"
+SUPABASE_SERVICE_KEY = "your-service-role-key"
+```
+
+### 5. Benefits of Using Supabase
+
+- **Reliable**: PostgreSQL-based with high availability
+- **Scalable**: Automatically scales with your usage
+- **Real-time**: Built-in real-time subscriptions
+- **Dashboard**: Web interface to view and manage your data
+- **Backup**: Automatic backups and point-in-time recovery
+- **Free Tier**: Generous free tier for small to medium usage
+
+### 6. Database Tables Created
+
+The schema creates these tables:
+- `mltb_settings` - Bot configuration and settings
+- `mltb_users` - User-specific data and preferences
+- `mltb_rss` - RSS feed configurations
+- `mltb_tasks` - Incomplete tasks tracking
+
+### 7. Monitoring Your Database
+
+You can monitor your database usage in the Supabase dashboard:
+- Go to **Settings** > **Database**
+- Check **Database Usage** for storage and connection metrics
+- Use the **Table Editor** to view and edit data directly
+
+------
+
 </details>
 
 <details>

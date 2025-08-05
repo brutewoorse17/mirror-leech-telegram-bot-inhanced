@@ -9,6 +9,7 @@ from ... import LOGGER, user_data, rss_dict, qbit_options
 from ...core.mltb_client import TgClient
 from ...core.config_manager import Config
 from .local_db_handler import LocalDbManager
+from .supabase_db_handler import SupabaseDbManager
 
 
 class DbManager:
@@ -17,42 +18,64 @@ class DbManager:
         self._conn = None
         self.db = None
         self._local_db = None
+        self._supabase_db = None
         self._use_local = False
+        self._use_supabase = False
 
     async def connect(self):
-        # Check if DATABASE_URL is provided
-        if not Config.DATABASE_URL:
-            LOGGER.info("DATABASE_URL not provided, using local SQLite database")
-            self._use_local = True
-            self._local_db = LocalDbManager()
-            await self._local_db.connect()
-            self.db = self._local_db.db
-            self._return = self._local_db._return
-            return
+        # Priority order: Supabase -> MongoDB -> SQLite
+        
+        # Try Supabase first if configured
+        if Config.SUPABASE_URL and Config.SUPABASE_SERVICE_KEY:
+            try:
+                LOGGER.info("Attempting to connect to Supabase database")
+                self._supabase_db = SupabaseDbManager()
+                await self._supabase_db.connect()
+                if not self._supabase_db._return:
+                    self.db = self._supabase_db.db
+                    self._return = False
+                    self._use_supabase = True
+                    LOGGER.info("Successfully connected to Supabase database")
+                    return
+                else:
+                    LOGGER.warning("Supabase connection failed, trying next option")
+            except Exception as e:
+                LOGGER.error(f"Error connecting to Supabase: {e}")
+                LOGGER.info("Falling back to next database option")
 
-        # Use MongoDB if DATABASE_URL is provided
-        try:
-            if self._conn is not None:
-                await self._conn.close()
-            self._conn = AsyncMongoClient(
-                Config.DATABASE_URL, server_api=ServerApi("1")
-            )
-            self.db = self._conn.mltb
-            self._return = False
-            LOGGER.info("Connected to MongoDB database")
-        except PyMongoError as e:
-            LOGGER.error(f"Error in DB connection: {e}")
-            LOGGER.info("Falling back to local SQLite database")
-            self._use_local = True
-            self._local_db = LocalDbManager()
-            await self._local_db.connect()
-            self.db = self._local_db.db
-            self._return = self._local_db._return
+        # Try MongoDB if DATABASE_URL is provided
+        if Config.DATABASE_URL and not self._use_supabase:
+            try:
+                LOGGER.info("Attempting to connect to MongoDB database")
+                if self._conn is not None:
+                    await self._conn.close()
+                self._conn = AsyncMongoClient(
+                    Config.DATABASE_URL, server_api=ServerApi("1")
+                )
+                self.db = self._conn.mltb
+                self._return = False
+                LOGGER.info("Successfully connected to MongoDB database")
+                return
+            except PyMongoError as e:
+                LOGGER.error(f"Error in MongoDB connection: {e}")
+                LOGGER.info("Falling back to local SQLite database")
+
+        # Fall back to SQLite
+        LOGGER.info("Using local SQLite database as fallback")
+        self._use_local = True
+        self._local_db = LocalDbManager()
+        await self._local_db.connect()
+        self.db = self._local_db.db
+        self._return = self._local_db._return
+        if self._conn:
+            await self._conn.close()
             self._conn = None
 
     async def disconnect(self):
         self._return = True
-        if self._use_local and self._local_db:
+        if self._use_supabase and self._supabase_db:
+            await self._supabase_db.disconnect()
+        elif self._use_local and self._local_db:
             await self._local_db.disconnect()
         elif self._conn is not None:
             await self._conn.close()
@@ -60,6 +83,9 @@ class DbManager:
 
     async def update_deploy_config(self):
         if self._return:
+            return
+        if self._use_supabase:
+            await self._supabase_db.update_deploy_config()
             return
         if self._use_local:
             await self._local_db.update_deploy_config()
@@ -77,6 +103,9 @@ class DbManager:
     async def update_config(self, dict_):
         if self._return:
             return
+        if self._use_supabase:
+            await self._supabase_db.update_config(dict_)
+            return
         if self._use_local:
             await self._local_db.update_config(dict_)
             return
@@ -86,6 +115,9 @@ class DbManager:
 
     async def update_aria2(self, key, value):
         if self._return:
+            return
+        if self._use_supabase:
+            await self._supabase_db.update_aria2(key, value)
             return
         if self._use_local:
             await self._local_db.update_aria2(key, value)
@@ -97,6 +129,9 @@ class DbManager:
     async def update_qbittorrent(self, key, value):
         if self._return:
             return
+        if self._use_supabase:
+            await self._supabase_db.update_qbittorrent(key, value)
+            return
         if self._use_local:
             await self._local_db.update_qbittorrent(key, value)
             return
@@ -107,6 +142,9 @@ class DbManager:
     async def save_qbit_settings(self):
         if self._return:
             return
+        if self._use_supabase:
+            await self._supabase_db.save_qbit_settings()
+            return
         if self._use_local:
             await self._local_db.save_qbit_settings()
             return
@@ -116,6 +154,9 @@ class DbManager:
 
     async def update_private_file(self, path):
         if self._return:
+            return
+        if self._use_supabase:
+            await self._supabase_db.update_private_file(path)
             return
         if self._use_local:
             await self._local_db.update_private_file(path)
@@ -137,6 +178,9 @@ class DbManager:
     async def update_nzb_config(self):
         if self._return:
             return
+        if self._use_supabase:
+            await self._supabase_db.update_nzb_config()
+            return
         if self._use_local:
             await self._local_db.update_nzb_config()
             return
@@ -148,6 +192,9 @@ class DbManager:
 
     async def update_user_data(self, user_id):
         if self._return:
+            return
+        if self._use_supabase:
+            await self._supabase_db.update_user_data(user_id)
             return
         if self._use_local:
             await self._local_db.update_user_data(user_id)
@@ -190,6 +237,9 @@ class DbManager:
     async def update_user_doc(self, user_id, key, path=""):
         if self._return:
             return
+        if self._use_supabase:
+            await self._supabase_db.update_user_doc(user_id, key, path)
+            return
         if self._use_local:
             await self._local_db.update_user_doc(user_id, key, path)
             return
@@ -207,6 +257,9 @@ class DbManager:
     async def rss_update_all(self):
         if self._return:
             return
+        if self._use_supabase:
+            await self._supabase_db.rss_update_all()
+            return
         if self._use_local:
             await self._local_db.rss_update_all()
             return
@@ -218,6 +271,9 @@ class DbManager:
     async def rss_update(self, user_id):
         if self._return:
             return
+        if self._use_supabase:
+            await self._supabase_db.rss_update(user_id)
+            return
         if self._use_local:
             await self._local_db.rss_update(user_id)
             return
@@ -228,6 +284,9 @@ class DbManager:
     async def rss_delete(self, user_id):
         if self._return:
             return
+        if self._use_supabase:
+            await self._supabase_db.rss_delete(user_id)
+            return
         if self._use_local:
             await self._local_db.rss_delete(user_id)
             return
@@ -235,6 +294,9 @@ class DbManager:
 
     async def add_incomplete_task(self, cid, link, tag):
         if self._return:
+            return
+        if self._use_supabase:
+            await self._supabase_db.add_incomplete_task(cid, link, tag)
             return
         if self._use_local:
             await self._local_db.add_incomplete_task(cid, link, tag)
@@ -246,6 +308,9 @@ class DbManager:
     async def rm_complete_task(self, link):
         if self._return:
             return
+        if self._use_supabase:
+            await self._supabase_db.rm_complete_task(link)
+            return
         if self._use_local:
             await self._local_db.rm_complete_task(link)
             return
@@ -255,6 +320,8 @@ class DbManager:
         notifier_dict = {}
         if self._return:
             return notifier_dict
+        if self._use_supabase:
+            return await self._supabase_db.get_incomplete_tasks()
         if self._use_local:
             return await self._local_db.get_incomplete_tasks()
         if await self.db.tasks[TgClient.ID].find_one():
@@ -272,6 +339,9 @@ class DbManager:
 
     async def trunc_table(self, name):
         if self._return:
+            return
+        if self._use_supabase:
+            await self._supabase_db.trunc_table(name)
             return
         if self._use_local:
             await self._local_db.trunc_table(name)

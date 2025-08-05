@@ -622,7 +622,7 @@ async def edit_bot_settings(client, query):
             sudo_users.clear()
         Config.set(data[2], value)
         await update_buttons(message, "var")
-        if data[2] == "DATABASE_URL":
+        if data[2] in ["DATABASE_URL", "SUPABASE_URL", "SUPABASE_SERVICE_KEY"]:
             await database.disconnect()
         await database.update_config({data[2]: value})
         if data[2] in ["SEARCH_PLUGINS", "SEARCH_API_LINK"]:
