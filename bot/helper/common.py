@@ -59,6 +59,21 @@ from .telegram_helper.message_utils import (
 
 
 class TaskConfig:
+    """Optimized task configuration class with __slots__ for memory efficiency."""
+    __slots__ = (
+        'mid', 'user', 'user_id', 'user_dict', 'dir', 'up_dir', 'link', 'up_dest',
+        'rc_flags', 'tag', 'name', 'subname', 'name_sub', 'thumbnail_layout',
+        'folder_name', 'split_size', 'max_split_size', 'multi', 'size', 'subsize',
+        'proceed_count', 'is_leech', 'is_qbit', 'is_nzb', 'is_jd', 'is_clone',
+        'is_ytdlp', 'equal_splits', 'user_transmission', 'hybrid_leech', 'extract',
+        'compress', 'select', 'seed', 'join', 'private_link', 'stop_duplicate',
+        'sample_video', 'convert_audio', 'convert_video', 'screen_shots',
+        'is_cancelled', 'force_run', 'force_download', 'force_upload', 'is_torrent',
+        'as_med', 'as_doc', 'is_file', 'bot_trans', 'user_trans', 'progress',
+        'ffmpeg_cmds', 'chat_thread_id', 'subproc', 'thumb', 'excluded_extensions',
+        'files_to_proceed', 'is_super_chat', 'message'
+    )
+    
     def __init__(self):
         self.mid = self.message.id
         self.user = self.message.from_user or self.message.sender_chat

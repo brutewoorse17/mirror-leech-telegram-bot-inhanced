@@ -1,34 +1,56 @@
+# Core async libraries
 asyncio
-aiofiles
+aiofiles>=23.0.0
 aioshutil
-anytree
-apscheduler
+uvloop>=0.17.0
+
+# HTTP clients (async preferred)
+httpx>=0.24.0
+aiohttp>=3.8.0
+
+# Bot and messaging
+kurigram
+tgcrypto
+telegraph
+
+# Download clients
 aioaria2
 aioqbt
-cloudscraper
-dnspython
-fastapi
-feedparser
+
+# Web framework
+fastapi>=0.100.0
+uvicorn[standard]>=0.22.0
+gunicorn>=21.0.0
+
+# Google Drive integration
 google-api-python-client
 google-auth-httplib2
 google-auth-oauthlib
-gunicorn
-httpx
-jinja2
-lxml
-natsort
-par2cmdline-turbo
-pillow
-psutil
-pymongo
-kurigram
+
+# File processing
+anytree
+pillow>=10.0.0
 python-magic
-requests
-telegraph
-tenacity
-tgcrypto
-urllib3
-uvicorn
-uvloop
+lxml>=4.9.0
+natsort
+
+# Utilities
+apscheduler>=3.10.0
+cloudscraper
+dnspython
+feedparser
+jinja2>=3.1.0
+par2cmdline-turbo
+psutil>=5.9.0
+pymongo>=4.0.0
+requests  # Keep for compatibility but prefer httpx
+tenacity>=8.2.0
+urllib3>=2.0.0
 xattr
+
+# Media processing
 yt-dlp[default,curl-cffi]
+
+# Performance monitoring (optional)
+memory-profiler
+cProfile
